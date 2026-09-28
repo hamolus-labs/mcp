@@ -1,0 +1,28 @@
+{
+  // MCP server — exposes the core API as Model Context Protocol tools.
+  // Runs locally with `pnpm -F @hamolus/mcp dev` (wrangler dev) and online via
+  // `pnpm -F @hamolus/mcp deploy` (wrangler deploy). Tools proxy to the core.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "hamolus-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    // Base URL of the core API (must end with /api). Override per environment:
+    //   local  -> http://localhost:8787/api   (wrangler dev)
+    //   online -> https://hamolus-core.<your-account>.workers.dev/api
+    "CORE_API_URL": "http://localhost:8787/api",
+    // Optional scope: land/colony sent as x-land / x-colony on every core
+    // request. Omit for the default land (single-tenant core).
+    "CORE_LAND": "",
+    "CORE_COLONY": ""
+  }
+  // Secrets (wrangler secret put):
+  //   CORE_API_TOKEN   — Bearer JWT the MCP server uses against the core. If
+  //                      not set, CORE_ADMIN_KEY is used to mint one at startup.
+  //   CORE_ADMIN_KEY   — admin key that mints a JWT via POST /api/_auth/token.
+  //   MCP_BEARER_TOKEN — optional. When set, the /mcp endpoint requires
+  //                      `Authorization: Bearer <token>` from MCP clients.
+  // Vars:
+  //   MCP_READONLY     — "true" disables every write/mutation tool.
+}

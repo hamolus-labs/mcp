@@ -1,0 +1,63 @@
+{
+  "name": "@hamolus/mcp",
+  "version": "0.2.8",
+  "type": "module",
+  "license": "MIT",
+  "author": "Gilang Albathin Nurhabibi <https://github.com/athron98>",
+  "homepage": "https://github.com/hamolus-labs/hamolus/tree/main/packages/mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hamolus-labs/hamolus.git",
+    "directory": "packages/mcp"
+  },
+  "bugs": {
+    "url": "https://github.com/hamolus-labs/hamolus/issues"
+  },
+  "keywords": [
+    "hamolus",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "agent",
+    "cloudflare"
+  ],
+  "description": "Model Context Protocol server for Hamolus: exposes the core API (collections, records, media, files, panels, lands) as MCP tools over Streamable HTTP on Cloudflare Workers.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "src",
+    "docs",
+    "wrangler.jsonc",
+    "tsconfig.json",
+    "LICENSE",
+    "README.md"
+  ],
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "build": "rm -rf dist && wrangler deploy --dry-run --outdir=dist",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hamolus/types": "^0.2.8",
+    "@modelcontextprotocol/server": "^2.1.0",
+    "agents": "^0.24.0",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260920.0",
+    "typescript": "~5.9.0",
+    "wrangler": "^4.135.0"
+  }
+}
