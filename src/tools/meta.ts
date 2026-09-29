@@ -203,47 +203,69 @@ export function registerMetaTools(s: ToolSurface, core: CoreClient): void {
   /* key/value config table                                              */
   /* ------------------------------------------------------------------ */
 
+  /**
+   * A `_configs` row belongs to a colony, so every config tool targets one with a query
+   * parameter — `scopeArgs` stays what it is everywhere else, the scope the request is
+   * *made* from. They are not the same thing: a land admin must be able to read a land
+   * (all of its colonies) and write one named colony of it, without that naming becoming
+   * the session's scope.
+   */
+  const configTargetArgs = {
+    withinLand: z
+      .string()
+      .optional()
+      .describe('Read every colony of this land. Rejected when withinColony names a colony of another land.'),
+    withinColony: z
+      .string()
+      .optional()
+      .describe('One colony. A land-scoped session must name it — the core will not guess which colony to write.'),
+  }
+
   s.tool(
     'list_config',
     {
-      description: 'List key/value configuration entries stored in the core (optionally filtered by scope: core, console or site).',
-      inputSchema: z.object({ scopeFilter: z.enum(['core', 'console', 'site']).optional(), ...scopeArgs }),
+      description:
+        'List key/value configuration entries. Each row carries its own land and colony. With neither withinLand nor withinColony, the core returns everything this session may see; a target it cannot reach is refused rather than silently narrowed.',
+      inputSchema: z.object({ ...configTargetArgs, ...scopeArgs }),
     },
-    run(({ scopeFilter, ...scope }: { scopeFilter?: 'core' | 'console' | 'site' } & z.infer<typeof scopeArgsSchema>) =>
-      core.get('/_config', { scope: scopeFilter }, scope),
+    run(({ withinLand, withinColony, ...scope }: { withinLand?: string; withinColony?: string } & z.infer<typeof scopeArgsSchema>) =>
+      core.get('/_config', { land: withinLand, colony: withinColony }, scope),
     ),
   )
 
   s.tool(
     'get_config',
     {
-      description: 'Read one configuration entry by key.',
-      inputSchema: z.object({ key: configKeySchema, ...scopeArgs }),
+      description:
+        'Read one configuration entry by key. A land-scoped session must pass withinColony, because the same key can hold a different value in each colony.',
+      inputSchema: z.object({ key: configKeySchema, ...configTargetArgs, ...scopeArgs }),
     },
-    run(({ key, land, colony }: { key: string; land?: string; colony?: string }) =>
-      core.get(`/_config/${seg(key)}`, undefined, { land, colony }),
+    run(({ key, withinLand, withinColony, ...scope }: { key: string; withinLand?: string; withinColony?: string } & z.infer<typeof scopeArgsSchema>) =>
+      core.get(`/_config/${seg(key)}`, { land: withinLand, colony: withinColony }, scope),
     ),
   )
 
   s.tool(
     'put_config',
     {
-      description: 'Create or replace a configuration entry (write tool; disabled in read-only mode). value is arbitrary JSON.',
+      description:
+        'Create or replace a configuration entry (write tool; disabled in read-only mode). value is arbitrary JSON. Upserts on (land, colony, key), so writing a key that exists replaces its value in that colony only. A land-scoped session must pass withinColony.',
       inputSchema: z.object({
         key: configKeySchema,
         value: z.unknown().describe('Arbitrary JSON value stored under this key.'),
-        scope: z.enum(['core', 'console', 'site']).default('core'),
         description: z.string().max(255).nullable().optional(),
+        ...configTargetArgs,
         ...scopeArgs,
       }),
     },
     runWrite(
       core,
-      (args: { key: string; value: unknown; scope: 'core' | 'console' | 'site'; description?: string | null; land?: string; colony?: string }) =>
+      (args: { key: string; value: unknown; description?: string | null; withinLand?: string; withinColony?: string; land?: string; colony?: string }) =>
         core.put(
           `/_config/${seg(args.key)}`,
-          { value: args.value, scope: args.scope, description: args.description },
+          { value: args.value, description: args.description },
           { land: args.land, colony: args.colony },
+          { land: args.withinLand, colony: args.withinColony },
         ),
     ),
   )
@@ -251,11 +273,12 @@ export function registerMetaTools(s: ToolSurface, core: CoreClient): void {
   s.tool(
     'delete_config',
     {
-      description: 'Delete a configuration entry (write tool; disabled in read-only mode).',
-      inputSchema: z.object({ key: configKeySchema, ...scopeArgs }),
+      description:
+        'Delete a configuration entry (write tool; disabled in read-only mode). Deletes it in the named colony only; a land-scoped session must pass withinColony.',
+      inputSchema: z.object({ key: configKeySchema, ...configTargetArgs, ...scopeArgs }),
     },
-    runWrite(core, (args: { key: string; land?: string; colony?: string }) =>
-      core.delete(`/_config/${seg(args.key)}`, { land: args.land, colony: args.colony }),
+    runWrite(core, (args: { key: string; withinLand?: string; withinColony?: string; land?: string; colony?: string }) =>
+      core.delete(`/_config/${seg(args.key)}`, { land: args.land, colony: args.colony }, { land: args.withinLand, colony: args.withinColony }),
     ),
   )
 
