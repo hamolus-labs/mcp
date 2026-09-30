@@ -21,10 +21,11 @@
  *
  * Two constraints shape the implementation:
  *
- * - **It is opt-in and capped.** `MCP_DYNAMIC_TOOLS` picks the collections and
- *   `MCP_DYNAMIC_MAX` bounds how many, because a model carrying 200 tool schemas
- *   in every request is worse off than one that calls `get_collection` when it
- *   needs to. Generated tools are a shortcut, not a replacement.
+ * - **It is opt-in and capped.** The operator picks the collections and bounds how
+ *   many, because a model carrying 200 tool schemas in every request is worse off
+ *   than one that calls `get_collection` when it needs to. Generated tools are a
+ *   shortcut, not a replacement. On a console-managed deployment both values come
+ *   from the core's instance config, so changing them needs no redeploy.
  * - **The collection's own `mcp` mode decides the verbs.** A `read` collection
  *   registers `list_` and `get_` and no write tool at all; a `hide` collection
  *   registers nothing and never reaches `tools/list`. See `collections.ts`, which
@@ -47,9 +48,6 @@ import { isWritable, isHidden as isHiddenForMcp, loadDefinitions } from './colle
 import type { CoreClient } from './core'
 import type { Env } from './env'
 import { filterArg, format, paginationArgs, run, runWrite, scopeArgs, seg, summarize, type ToolSurface } from './tools/shared'
-
-/** Default ceiling on generated collections when `MCP_DYNAMIC_MAX` is unset. */
-const DEFAULT_MAX = 10
 
 /** A one-line field digest, so the tool description is useful before the call. */
 function fieldDigest(def: CollectionDefinition): string {
@@ -79,11 +77,11 @@ function header(def: CollectionDefinition): string {
 }
 
 /**
- * Resolve `MCP_DYNAMIC_TOOLS` into the definitions to generate for.
+ * Resolve the configured collection list into the definitions to generate for.
  *
  * `all` keeps the core's own order. An explicit list keeps the order it was
- * written in, because that list is also what `MCP_DYNAMIC_MAX` truncates — the
- * operator's first choices should be the ones that survive the cap. A hidden
+ * written in, because that list is also what the cap truncates — the operator's
+ * first choices should be the ones that survive it. A hidden
  * collection is dropped here rather than in the registration loop, so it does
  * not consume one of the cap slots either.
  */
@@ -101,14 +99,14 @@ function selection(raw: string | undefined, available: CollectionDefinition[]): 
   return wanted.map((name) => byName.get(name)).filter((def): def is CollectionDefinition => def !== undefined)
 }
 
-export async function registerDynamicTools(surface: ToolSurface, core: CoreClient, env: Env): Promise<void> {
-  if (!env.MCP_DYNAMIC_TOOLS?.trim()) return
-
-  const max = Number.parseInt(env.MCP_DYNAMIC_MAX ?? '', 10)
-  const limit = Number.isFinite(max) && max > 0 ? max : DEFAULT_MAX
+export async function registerDynamicTools(surface: ToolSurface, core: CoreClient, _env: Env): Promise<void> {
+  // Read from the client, not from env: on a console-managed deployment these
+  // come from the instance config, and `CoreClient.ready()` has already run.
+  const wanted = core.dynamicTools?.trim()
+  if (!wanted) return
 
   const { defs, languages } = await loadDefinitions(core)
-  const chosen = selection(env.MCP_DYNAMIC_TOOLS, defs).slice(0, limit)
+  const chosen = selection(wanted, defs).slice(0, core.dynamicMax)
 
   for (const def of chosen) {
     registerCollection(surface, core, def, languages)
@@ -120,7 +118,7 @@ function registerCollection(s: ToolSurface, core: CoreClient, def: CollectionDef
   const about = header(def)
   // A `read` collection gets the two read verbs and nothing else: the write tools
   // are not registered at all, so a model cannot see them in tools/list and
-  // cannot talk itself into trying them. `MCP_READONLY` still wins over `write`,
+  // cannot talk itself into trying them. Read-only still wins over `write`,
   // which is why a read-only server registers no write verb for any collection.
   const mayWrite = isWritable(def) && !core.readonly
 

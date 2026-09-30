@@ -12,9 +12,9 @@
  * The `admin` tool group: accounts, roles, the land/colony registry writes, and
  * whole-scope export/import.
  *
- * This group is **off by default** (`MCP_TOOL_GROUPS`). Everything in it can
+ * This group is **off by default** (see `MCP_TOOL_GROUPS` in the console). Everything in it can
  * reshape who else may reach the core or destroy a tenant outright, so a
- * deployment has to name it before the surface appears. `MCP_READONLY=true` still
+ * deployment has to name it before the surface appears. A read-only instance still
  * refuses every write here on top of that.
  */
 

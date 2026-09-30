@@ -14,7 +14,7 @@
  * routes — there is no second data path and no local cache that could go stale.
  *
  * Collection definitions are dynamic, so the record tools take a `collection`
- * argument rather than having one tool per collection. `MCP_DYNAMIC_TOOLS` adds
+ * argument rather than having one tool per collection. Per-collection tools add
  * per-collection tools for the schemas a client uses most; see `dynamic-tools.ts`.
  */
 

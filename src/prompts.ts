@@ -20,7 +20,7 @@
  *
  * - **A prompt never guesses data.** It names the tools to call and the order;
  *   the model fetches the actual schema and rows itself.
- * - **A prompt states the refusals.** `MCP_READONLY`, the admin group being off,
+ * - **A prompt states the refusals.** Read-only mode, the admin group being off,
  *   and the destructive tools are all things the model should discover from the
  *   prompt text rather than by hitting an error mid-task.
  */
@@ -44,7 +44,7 @@ function ask(text: string): { messages: { role: 'user'; content: { type: 'text';
 const SCOPE_HINT =
   'Every tool accepts optional land and colony arguments that override the server default. Pass them only when the ' +
   'user named a scope; otherwise leave them out so the server default applies. Tools that write refuse outright when ' +
-  'the server runs with MCP_READONLY=true — if one refuses, tell the user instead of retrying.'
+  'the server is read-only — if one refuses, tell the user instead of retrying.'
 
 export function registerPrompts(server: McpServer): void {
   server.registerPrompt(
@@ -243,7 +243,7 @@ export function registerPrompts(server: McpServer): void {
           '4. Report the account, its role, and the permissions that role carries.',
           '',
           'These tools live in the `admin` group. If get_current_user or list_privileges reports the tool is missing,',
-          'the server was started without MCP_TOOL_GROUPS including admin — tell the user rather than working around it.',
+          'the admin tool group is not enabled for this server — tell the user rather than working around it.',
           SCOPE_HINT,
         ].join('\n'),
       ),

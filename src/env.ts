@@ -8,59 +8,72 @@
  * Licensed under the MIT License. See the LICENSE file at the repository root.
  */
 
-/** Tool groups that can be registered; see `src/tools/index.ts` for the members. */
-export const TOOL_GROUPS = ['records', 'media', 'meta', 'admin'] as const
+/**
+ * Bindings for the MCP server.
+ *
+ * On the console-managed path a deployment sets exactly two vars: `CORE_API_URL`
+ * and `MCP_INSTANCE_ID`. Everything that decides what this server may do — scope,
+ * read-only, tool groups — is fetched from the core at request time, so an
+ * operator changes it in the console and does not redeploy.
+ *
+ * The `LEGACY_*` fields are the pre-console arrangement (`CORE_ADMIN_KEY`,
+ * `MCP_BEARER_TOKEN`, and friends). They still work so an existing deployment
+ * keeps serving, but they are deprecated: with an admin key the worker's reach is
+ * the whole platform, and `MCP_READONLY` only narrows what the worker *offers* —
+ * not what the core accepts. Remove them when the instance exists in the console.
+ */
 
-export type ToolGroup = (typeof TOOL_GROUPS)[number]
+import {
+  DEFAULT_MCP_TOOL_GROUPS,
+  MCP_TOOL_GROUPS,
+  type McpToolGroup,
+  parseMcpToolGroups,
+} from '@hamolus/types'
 
-/** Groups registered when `MCP_TOOL_GROUPS` is unset. `admin` is opt-in. */
-export const DEFAULT_TOOL_GROUPS: readonly ToolGroup[] = ['records', 'media', 'meta']
+export { MCP_TOOL_GROUPS, DEFAULT_MCP_TOOL_GROUPS }
+export type { McpToolGroup }
 
-export interface Env {
-  /** Base URL of the core API, e.g. `http://localhost:8787/api`. */
-  CORE_API_URL?: string
-  /** Bearer JWT used against the core. If unset, CORE_ADMIN_KEY mints one. */
-  CORE_API_TOKEN?: string
-  /** Admin key exchanged for a JWT at POST /api/_auth/token. */
-  CORE_ADMIN_KEY?: string
-  /** Optional land scope sent as `x-land` on every core request. */
-  CORE_LAND?: string
-  /** Optional tenant colony sent as `x-colony`. */
-  CORE_COLONY?: string
-  /** When set, the /mcp endpoint requires `Authorization: Bearer <token>`. */
-  MCP_BEARER_TOKEN?: string
-  /** `"true"` disables every write/mutation tool. */
-  MCP_READONLY?: string
-  /**
-   * Comma-separated tool groups to register. Unset = {@link DEFAULT_TOOL_GROUPS}.
-   * Unknown names are ignored; `all` expands to every group.
-   */
-  MCP_TOOL_GROUPS?: string
-  /**
-   * Per-collection tools: `all`, or a comma-separated collection list. Unset or
-   * empty = off. Read from the core's collection definitions at request time.
-   */
-  MCP_DYNAMIC_TOOLS?: string
-  /** Hard cap on collections that get per-collection tools (default 10). */
-  MCP_DYNAMIC_MAX?: string
+/** `resolveToolGroups` kept as the legacy env entry point. */
+export function resolveToolGroups(raw: string | undefined): Set<McpToolGroup> {
+  return new Set(parseMcpToolGroups(raw))
 }
 
-/**
- * Parse `MCP_TOOL_GROUPS` into a set. An unset value means the default set; the
- * literal `all` means every group. Unrecognised names are dropped rather than
- * throwing, so a typo in a wrangler var degrades to a smaller surface instead of
- * a server that will not start.
- */
-export function resolveToolGroups(raw: string | undefined): Set<ToolGroup> {
-  if (raw === undefined || raw.trim() === '') return new Set(DEFAULT_TOOL_GROUPS)
-  const wanted = raw
-    .split(',')
-    .map((part) => part.trim().toLowerCase())
-    .filter(Boolean)
-  if (wanted.includes('all')) return new Set(TOOL_GROUPS)
-  const set = new Set<ToolGroup>()
-  for (const name of wanted) {
-    if ((TOOL_GROUPS as readonly string[]).includes(name)) set.add(name as ToolGroup)
-  }
-  return set
+export interface Env {
+  /** Base URL of the core API, including the `/api` prefix. */
+  CORE_API_URL?: string
+
+  /**
+   * This server's id in the core's console. When set, the server is
+   * console-managed: it reads its configuration from the core and mints its
+   * sessions from a per-user token.
+   */
+  MCP_INSTANCE_ID?: string
+
+  /**
+   * @deprecated Console-managed deployments leave this unset. A bearer JWT used
+   * against the core; when unset, `CORE_ADMIN_KEY` mints one.
+   */
+  CORE_API_TOKEN?: string
+  /**
+   * @deprecated A platform-wide admin key. Gives this server every land and
+   * colony, not one — prefer `MCP_INSTANCE_ID`.
+   */
+  CORE_ADMIN_KEY?: string
+  /** @deprecated Only consulted when `MCP_INSTANCE_ID` is unset. */
+  CORE_LAND?: string
+  /** @deprecated Only consulted when `MCP_INSTANCE_ID` is unset. */
+  CORE_COLONY?: string
+  /**
+   * @deprecated A static shared secret compared verbatim on every request. Use
+   * per-user tokens from the console instead.
+   */
+  MCP_BEARER_TOKEN?: string
+  /** @deprecated Only consulted when `MCP_INSTANCE_ID` is unset. */
+  MCP_READONLY?: string
+  /** @deprecated Only consulted when `MCP_INSTANCE_ID` is unset. */
+  MCP_TOOL_GROUPS?: string
+  /** @deprecated Only consulted when `MCP_INSTANCE_ID` is unset. */
+  MCP_DYNAMIC_TOOLS?: string
+  /** @deprecated Only consulted when `MCP_INSTANCE_ID` is unset. */
+  MCP_DYNAMIC_MAX?: string
 }

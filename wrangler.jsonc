@@ -7,22 +7,36 @@
   "main": "src/index.ts",
   "compatibility_date": "2025-12-01",
   "compatibility_flags": ["nodejs_compat"],
+
+  // The MCP server binds no D1/KV/R2: it is a stateless proxy that turns the core API
+  // into MCP tools, so it has nothing to store and nothing to migrate.
+  //
+  // TWO VARS IS THE WHOLE SETUP. Everything else — which land/colony this server may
+  // touch, whether it may write, which tool groups it offers, and who may call it —
+  // lives in the core and is changed from the console, with no redeploy.
   "vars": {
-    // Base URL of the core API (must end with /api). Override per environment:
-    //   local  -> http://localhost:8787/api   (wrangler dev)
+    // Base URL of the core API (must end with /api). Point it at your deployed core:
+    //   local  -> http://localhost:8787/api
     //   online -> https://hamolus-core.<your-account>.workers.dev/api
     "CORE_API_URL": "http://localhost:8787/api",
-    // Optional scope: land/colony sent as x-land / x-colony on every core
-    // request. Omit for the default land (single-tenant core).
-    "CORE_LAND": "",
-    "CORE_COLONY": ""
+
+    // This server's id in the core. Create the instance in the console
+    // (Environment -> MCP), then paste the id here.
+    //
+    // It is a credential, not a label: anyone holding it can read this server's
+    // configuration, and it is generated for you precisely so it cannot be guessed.
+    "MCP_INSTANCE_ID": ""
   }
-  // Secrets (wrangler secret put):
-  //   CORE_API_TOKEN   — Bearer JWT the MCP server uses against the core. If
-  //                      not set, CORE_ADMIN_KEY is used to mint one at startup.
-  //   CORE_ADMIN_KEY   — admin key that mints a JWT via POST /api/_auth/token.
-  //   MCP_BEARER_TOKEN — optional. When set, the /mcp endpoint requires
-  //                      `Authorization: Bearer <token>` from MCP clients.
-  // Vars:
-  //   MCP_READONLY     — "true" disables every write/mutation tool.
+
+  // There are no secrets to set.
+  //
+  // The old arrangement wanted `wrangler secret put CORE_ADMIN_KEY` — a platform-wide
+  // admin key that could reach every land and colony, where "read only" was a promise
+  // the worker made rather than a rule the core enforced. A console-managed instance
+  // gets its permissions from the core instead, and callers present a per-user token
+  // that the console issued and can revoke.
+  //
+  // Migrating: set MCP_INSTANCE_ID, deploy, and drop the CORE_ADMIN_KEY /
+  // MCP_BEARER_TOKEN secrets. Until MCP_INSTANCE_ID is set, the deprecated env path
+  // still works — `GET /` on this worker will say `mode: "legacy"` and warn you.
 }

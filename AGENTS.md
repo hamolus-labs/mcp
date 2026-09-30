@@ -39,8 +39,11 @@ pnpm -F @hamolus/mcp deploy
 
 ## The tool surface
 
-Tools are **snake_case and verb-first**, in four groups gated by
-`MCP_TOOL_GROUPS` (default `records,media,meta`; `admin` is opt-in):
+Tools are **snake_case and verb-first**, in four groups. Which groups a deployment
+offers is **its instance's configuration in the core**, fetched at request time — not a
+var on this worker. A new instance defaults to `records,media,meta`; `admin` is opt-in
+because it can create and delete tenants, users and privileges. On the deprecated
+env path the var is `MCP_TOOL_GROUPS` (`all` adds `admin`):
 
 - **records** — `list_collections`, `get_collection`, `put_collection`,
   `delete_collection`, `list_records`, `get_record`, `create_record`,
@@ -77,7 +80,11 @@ Tools are **snake_case and verb-first**, in four groups gated by
   collection schema comes from `buildEntitySchema()` in `@hamolus/types`; the moment
   this package starts hand-writing a field type, it has forked the core's validation.
 - **A static name wins.** Dynamic tools skip a verb whose name a static tool already
-  holds, so enabling `MCP_DYNAMIC_TOOLS=all` can only add tools, never shadow one.
+  holds, so naming every collection in an instance's dynamic list can only add tools,
+  never shadow one. The `reg` helper in `dynamic-tools.ts` is the single place that
+  check lives, and it is silent on purpose: `GET /` reports the group and dynamic
+  counts, and a `config` collection must not have its generated verbs shadowed by the
+  static `list_config` / `get_config` simply because it is enumerated first.
 
 **A collection's `mcp` mode is checked in one place, and every surface goes through
 it.** `src/collections.ts` owns the definition cache and the mode rules; `records`,
@@ -86,9 +93,17 @@ the tools alone is not enforced, because `hamolus://records/<collection>` is a s
 way in — so when you add a surface, the first question is which helper it needs.
 - **Await the payload before stringifying it.** `JSON.stringify(promise)` is `"{}"`,
   not an error — `doc()` in `src/resources.ts` takes a `Promise` for that reason.
-- The scope the MCP server may touch is set by the project's env, not by the caller. A
-  request for a land outside that set is refused server-side. Resources, which take no
-  arguments, are pinned to that same default scope.
+- **The scope is the instance's, and it is not the caller's to widen.** A worker
+  authenticates with an instance id before it knows its own scope, so the scope comes
+  from the instance row in the core and nowhere else — not from `?land=`, not from
+  `x-land`, and not from the tools' own `land`/`colony` arguments, which the core
+  refuses when they point outside the instance. Resources, which take no arguments,
+  are pinned to the same scope.
+- **Resolve config and session *outside* `createMcpHandler`'s factory.** The SDK
+  reports anything its factory throws as a bare JSON-RPC `-32603`, which is useless in
+  a worker log and hides a disabled instance behind what looks like a crash. Resolving
+  in `src/index.ts` first keeps the core's own `403 MCP_DISABLED` and `401` wording
+  intact, which is the difference between an operator reading a log and guessing.
 - Keep `sideEffects: false` true in `package.json`; a project imports this entry to
   compose an Agent.
 
@@ -96,8 +111,11 @@ way in — so when you add a surface, the first question is which helper it need
 
 There is no gate script in this package. `pnpm typecheck && pnpm build` from the
 repository root is the check, and the runtime surface is pinned by
-`pnpm check:panel-acl` and `pnpm check:localization-api` on the core side — a tool
-whose name or payload drifts from the route it calls shows up there, not here.
+`pnpm check:panel-acl`, `pnpm check:localization-api` and **`pnpm check:mcp-instance-acl`**
+on the core side — a tool whose name or payload drifts from the route it calls shows up
+there, not here. `check:mcp-instance-acl` is the one that also pins what this worker is
+*offered*: a read-only instance must not register a write verb at all, so a drift there
+shows up as a tool count, not as a `403` nobody notices until a model tries.
 
 ## Conventions
 

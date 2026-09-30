@@ -40,11 +40,50 @@ export interface ToolSurface {
   ): void
 }
 
-export function createToolSurface(server: McpServer): ToolSurface {
+/**
+ * A handler built by {@link runWrite}, tagged so the surface can recognise it.
+ *
+ * The tag is set by the same function that implements the refusal, which is the
+ * whole point: "is a write tool" cannot drift from "is wrapped in `runWrite`". A
+ * second list — a `WRITE_TOOLS` set, or an `isWrite` flag in each tool's
+ * annotations — would be a third place to forget, and the only symptom would be a
+ * read-only instance quietly gaining a write tool.
+ */
+const WRITE_TOOL: unique symbol = Symbol.for('hamolus.mcp.writeTool')
+
+interface WriteToolMarker {
+  [WRITE_TOOL]: true
+}
+
+type WriteTool = ((args: never) => Promise<CallToolResult>) & WriteToolMarker
+
+function isWriteTool(cb: unknown): boolean {
+  return typeof cb === 'function' && (cb as Partial<WriteToolMarker>)[WRITE_TOOL] === true
+}
+
+/**
+ * Build the registration surface.
+ *
+ * `core` is optional only so the dynamic-tool path and any standalone caller keep
+ * working; when it is present, write tools are not registered at all on a read-only
+ * instance. See {@link createToolSurface} callers for why that matters.
+ */
+export function createToolSurface(server: McpServer, core?: CoreClient): ToolSurface {
   const names = new Set<string>()
   return {
     names,
     tool(name, config, cb) {
+      // A read-only instance does not *offer* a write tool, rather than offering it
+      // and refusing on call.
+      //
+      // The core refuses either way, so this is not the security boundary — but an
+      // agent reads `tools/list` to decide what it can do, and a list full of tools
+      // that all fail wastes the turn and trains the model to retry refusals. It
+      // also used to be inconsistent inside this one package: the per-collection
+      // dynamic tools already disappear when read-only (`mayWrite` in
+      // `dynamic-tools.ts`), so a read-only instance hid `create_record` for a
+      // dynamic collection while still advertising the static one.
+      if (core?.readonly && isWriteTool(cb)) return
       if (names.has(name)) {
         throw new Error(`Duplicate MCP tool name: ${name}. Two tools in the same surface cannot share a name.`)
       }
@@ -159,9 +198,9 @@ export function run<A>(fn: (args: A) => Promise<unknown>): (args: A) => Promise<
   }
 }
 
-/** Wrap a write tool body: refuse outright when `MCP_READONLY=true`. */
+/** Wrap a write tool body: refuse outright when the instance is read-only. */
 export function runWrite<A>(core: CoreClient, fn: (args: A) => Promise<unknown>): (args: A) => Promise<CallToolResult> {
-  return async (args: A) => {
+  const wrapped = async (args: A) => {
     try {
       core.assertWritable()
       return ok(format(await fn(args)))
@@ -169,6 +208,11 @@ export function runWrite<A>(core: CoreClient, fn: (args: A) => Promise<unknown>)
       return err(e)
     }
   }
+  // Tagged so `createToolSurface` can drop the tool from `tools/list` when the
+  // instance is read-only. The refusal above stays as a second line of defence:
+  // a tool reached some other way must still not write.
+  ;(wrapped as unknown as WriteTool)[WRITE_TOOL] = true
+  return wrapped
 }
 
 /** Wrap a list response for a readable first line in the tool result. */

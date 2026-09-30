@@ -34,22 +34,39 @@ hamolus add mcp        # copy this server into ./mcp
 
 ## Configure
 
+**Two vars. There are no secrets.**
+
 | Variable | Purpose |
 | -------- | ------- |
-| `CORE_API_URL` | base URL of the core API |
-| `CORE_API_TOKEN` | bearer token; omit to mint one from `CORE_ADMIN_KEY` |
-| `CORE_ADMIN_KEY` | admin key used to mint a token when no token is set |
-| `CORE_LAND` / `CORE_COLONY` | default scope for every request, and the scope resources resolve against |
-| `MCP_BEARER_TOKEN` | when set, clients must send `Authorization: Bearer …` |
-| `MCP_READONLY` | `true` refuses every write tool |
-| `MCP_TOOL_GROUPS` | which tool groups to expose; default `records,media,meta`, `all` adds `admin` |
-| `MCP_DYNAMIC_TOOLS` | `all` or a list of collection names to generate per-collection tools for |
-| `MCP_DYNAMIC_MAX` | cap on generated collections, default 10 |
+| `CORE_API_URL` | base URL of the core API, including `/api` |
+| `MCP_INSTANCE_ID` | this server's id in the core, created in the console under **Environment → MCP** |
 
-Every tool also accepts `land`/`colony` to override the default scope per call.
+Everything else is **per-instance configuration in the core**: which colony the server
+serves, whether it is enabled, whether it is read-only, which tool groups it offers,
+and which collections get generated tools. Read it from
+`GET /api/_mcp/config` at request time and change it from the console — no redeploy, no
+secret to rotate.
+
+Callers send a **per-user token** issued in the console as `Authorization: Bearer
+<token>`. The core exchanges it for a short-lived scoped session, and each token can be
+revoked on its own. Stored hashes only; the plaintext is shown once, at creation.
+
+`MCP_INSTANCE_ID` is a credential rather than a label — anyone holding it can read this
+server's configuration — so it is generated rather than chosen. `GET /` echoes it, plus
+`mode: "console-managed"`, so a half-finished migration is visible.
+
+Older deployments used `CORE_ADMIN_KEY`, `MCP_BEARER_TOKEN`, `MCP_READONLY`,
+`MCP_TOOL_GROUPS`, `MCP_DYNAMIC_TOOLS` and `CORE_LAND`/`CORE_COLONY`. They still run on
+the deprecated path, so nothing breaks on upgrade; set `MCP_INSTANCE_ID` and delete the
+secrets when you are ready. `GET /` says `mode: "legacy"` and warns until you do.
+
+Every tool also accepts `land`/`colony`, but the core refuses any scope outside the
+instance's — an instance serves exactly one colony.
 
 Each collection's `mcp` key (`read` — the default, `write`, or `hide`) decides what
-this server may do with it, across tools, generated tools and resources alike.
+this server may do with it, across tools, generated tools and resources alike. A
+read-only instance does not register write tools at all, so they never appear in
+`tools/list`.
 
 ## Reference
 
@@ -60,7 +77,7 @@ this server may do with it, across tools, generated tools and resources alike.
 Resources, prompts, generated per-collection tools, and the per-collection
 `mcp` mode — `read` (the default), `write` or `hide`.
 
-See the [changelog](https://github.com/hamolus-labs/hamolus/blob/main/CHANGELOG.md#022--2026-09-28) for every release.
+See the [changelog](https://github.com/hamolus-labs/hamolus/blob/main/CHANGELOG.md#0210--2026-09-30) for every release.
 
 ## License
 
