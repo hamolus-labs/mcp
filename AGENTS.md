@@ -27,6 +27,7 @@ pnpm -F @hamolus/mcp deploy
 | ---- | ----- |
 | `src/index.ts` | the Agent: name, the root JSON index, `createServer()`, and the bearer-token guard on `POST /mcp` |
 | `src/env.ts` | bindings: core credentials, scopes, tool-group and dynamic-tool switches |
+| `src/version.ts` | `SERVER_VERSION`, sent as `MCP_WORKER_VERSION_HEADER` on every core call. Its own module because `core.ts` reports it and `index.ts` already imports `core.ts` |
 | `src/core.ts` | `CoreClient` — a typed wrapper over the core REST API: auth, scope headers, query building, multipart, error normalisation |
 | `src/tools/index.ts` | the tool registry: which group registers what, and the `ToolSurface` the generated tools check for name collisions |
 | `src/tools/shared.ts` | schemas every group reuses (paging, `filter`, scope args, id escaping) and the result wrappers |

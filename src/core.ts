@@ -29,8 +29,9 @@
  */
 
 import type { McpInstanceConfig } from '@hamolus/types'
-import { parseMcpToolGroups } from '@hamolus/types'
+import { MCP_WORKER_VERSION_HEADER, parseMcpToolGroups } from '@hamolus/types'
 import type { Env } from './env'
+import { SERVER_VERSION } from './version'
 
 const globalStore = globalThis as {
   __mcpConfigCache?: Map<string, { at: number; config: McpInstanceConfig }>
@@ -145,10 +146,22 @@ export class CoreClient {
     this.config = config
   }
 
-  /** `GET /_mcp/config` — the instance id alone, never a session JWT. */
+  /**
+   * `GET /_mcp/config` — the instance id alone, never a session JWT.
+   *
+   * `MCP_WORKER_VERSION_HEADER` is how this deployment registers itself. The core
+   * records it against the instance row, which is what lets the console distinguish a
+   * registered instance from a live one and show which release is actually deployed —
+   * an id that exists in the console says someone created a row, not that anything is
+   * running behind it. `ready()` caches the answer for a minute, so the header rides
+   * along on a call that happens anyway rather than adding a heartbeat of its own.
+   */
   private async fetchConfig(): Promise<McpInstanceConfig> {
     const res = await fetch(`${this.base}/_mcp/config`, {
-      headers: { authorization: `Bearer ${this.env.MCP_INSTANCE_ID}` },
+      headers: {
+        authorization: `Bearer ${this.env.MCP_INSTANCE_ID}`,
+        [MCP_WORKER_VERSION_HEADER]: SERVER_VERSION,
+      },
     })
     const body = await readBody<{ data?: { instance?: McpInstanceConfig }; error?: { message?: string } }>(res)
     if (!res.ok || !body?.data?.instance) {
@@ -183,6 +196,11 @@ export class CoreClient {
       headers: {
         'content-type': 'application/json',
         authorization: `Bearer ${this.env.MCP_INSTANCE_ID}`,
+        // Recorded by the core on a verified exchange. Not redundant with the
+        // `/config` header: the session is exchanged on a 15-minute TTL while the
+        // config is cached for a minute, so this is the call that keeps an instance
+        // looking alive to an operator between two config reads.
+        [MCP_WORKER_VERSION_HEADER]: SERVER_VERSION,
       },
       body: JSON.stringify({ token: this.presentedToken }),
     })

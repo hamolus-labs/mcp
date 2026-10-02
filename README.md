@@ -55,6 +55,13 @@ revoked on its own. Stored hashes only; the plaintext is shown once, at creation
 server's configuration — so it is generated rather than chosen. `GET /` echoes it, plus
 `mode: "console-managed"`, so a half-finished migration is visible.
 
+Every call to the core sends this server's release in `x-hamolus-mcp-version`, and the
+core records it with a last-seen time. **Environment → MCP** then shows whether the
+instance is actually deployed, which version it runs, and when it was last heard from —
+an instance row exists from the moment it is created, so `enabled` alone cannot tell you
+a worker is behind it. Nothing is configured to make this work, and an older worker that
+sends no header is still served; it just records liveness without a version.
+
 Older deployments used `CORE_ADMIN_KEY`, `MCP_BEARER_TOKEN`, `MCP_READONLY`,
 `MCP_TOOL_GROUPS`, `MCP_DYNAMIC_TOOLS` and `CORE_LAND`/`CORE_COLONY`. They still run on
 the deprecated path, so nothing breaks on upgrade; set `MCP_INSTANCE_ID` and delete the
