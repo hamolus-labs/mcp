@@ -74,6 +74,16 @@ env path the var is `MCP_TOOL_GROUPS` (`all` adds `admin`):
   alone. Keep them specific: a description that repeats the name helps nobody.
 - **The tool is a thin wrapper; `CoreClient` owns the transport.** Auth, scope headers,
   error normalisation and the base URL live in `src/core.ts` and nowhere else.
+- **One method leaves for the core: `CoreClient.call()`.** A `CORE` service binding, when
+  one is bound, wins over `CORE_API_URL` — it is the only way to reach a sibling worker on
+  an account whose `workers.dev` subdomain is not reachable from inside the Workers
+  runtime, where every call through the URL returns a bodyless `404`. Do not call `fetch`
+  for the core directly: a bound deployment would silently keep using a URL that cannot
+  work. The URL passes through unchanged because the core dispatches on path and never
+  reads `Host`.
+- **An error nobody can act on is a bug.** Name the URL you called, and say so when the
+  response carried no error body. A `404` from the edge and a `404` from the core are the
+  same status and nothing else.
 - **Errors are returned, not thrown at the transport.** A tool that throws kills the
   turn; a tool that returns the core's error payload lets the model adapt. Preserve
   `INVALID_QUERY`, `FORBIDDEN` and `NOT_FOUND` wording.

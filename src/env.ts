@@ -23,6 +23,7 @@
  * not what the core accepts. Remove them when the instance exists in the console.
  */
 
+import type { Fetcher } from '@cloudflare/workers-types'
 import {
   DEFAULT_MCP_TOOL_GROUPS,
   MCP_TOOL_GROUPS,
@@ -41,6 +42,22 @@ export function resolveToolGroups(raw: string | undefined): Set<McpToolGroup> {
 export interface Env {
   /** Base URL of the core API, including the `/api` prefix. */
   CORE_API_URL?: string
+
+  /**
+   * Service binding to the core worker in the same Cloudflare account.
+   *
+   * Optional, and preferred over `CORE_API_URL` when present. A binding is a direct
+   * call to the named worker: no DNS, no TLS handshake, no public edge, and no
+   * dependence on the account's `workers.dev` subdomain being reachable from inside
+   * the Workers runtime. That last part is not a theoretical concern — on an account
+   * where it is not reachable, a correctly configured `CORE_API_URL` still fails with
+   * a bodyless `404` that no amount of fixing the URL will clear, and the binding is
+   * the only way through.
+   *
+   * The core routes on path alone and never reads `Host`, so the bound call reuses
+   * whatever URL was built and only the destination changes.
+   */
+  CORE?: Fetcher
 
   /**
    * This server's id in the core's console. When set, the server is

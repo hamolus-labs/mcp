@@ -67,6 +67,30 @@ Older deployments used `CORE_ADMIN_KEY`, `MCP_BEARER_TOKEN`, `MCP_READONLY`,
 the deprecated path, so nothing breaks on upgrade; set `MCP_INSTANCE_ID` and delete the
 secrets when you are ready. `GET /` says `mode: "legacy"` and warns until you do.
 
+### Reaching the core when the URL does not work
+
+`CORE_API_URL` is enough on most accounts. On some accounts it is not: a request from
+the worker to a `workers.dev` address — **including the worker's own hostname** — comes
+back as a `404` with no body at all, from the edge, before it ever reaches your code. The
+symptom is a `CORE_UNAVAILABLE` error mentioning a config read, and the URL in it is
+correct, so nothing you change about that URL will fix it.
+
+Use a service binding to the core worker instead:
+
+```jsonc
+"services": [{ "binding": "CORE", "service": "your-core-worker-name" }]
+```
+
+The binding dispatches straight to that worker in the same account — no DNS, no TLS, no
+public edge — and `CORE_API_URL` then only supplies the paths. With the binding present
+every request goes through it. Leave it out for `pnpm dev`, where the local core is a
+separate process on `http://localhost:8787` and a service binding would take precedence
+over it.
+
+Every failure to read the configuration now names the URL it called and says so when the
+response carried no error body, so an unreachable core is distinguishable from a core
+that rejected the instance id.
+
 Every tool also accepts `land`/`colony`, but the core refuses any scope outside the
 instance's — an instance serves exactly one colony.
 

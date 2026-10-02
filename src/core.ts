@@ -85,6 +85,25 @@ export class CoreClient {
   }
 
   /**
+   * The one place a request leaves for the core.
+   *
+   * A `CORE` service binding wins over the URL when it is configured. The binding is
+   * a direct call to the worker in the same account, so it skips DNS, TLS and the
+   * public edge — and, unlike the URL, it keeps working on an account whose
+   * `workers.dev` subdomain is not reachable from inside the Workers runtime, where
+   * every call through `CORE_API_URL` comes back as a bodyless `404` no matter how
+   * correct the URL is.
+   *
+   * The URL is passed through unchanged because the core dispatches on path and never
+   * reads `Host`, so there is nothing for the binding to rewrite.
+   */
+  private call(url: string, init: RequestInit): Promise<Response> {
+    const bound = this.env.CORE
+    if (!bound) return fetch(url, init)
+    return bound.fetch(url, init)
+  }
+
+  /**
    * The land/colony this server defaults to when a tool omits them.
    *
    * On the managed path this is the instance's own scope, which is how a worker
@@ -155,9 +174,16 @@ export class CoreClient {
    * an id that exists in the console says someone created a row, not that anything is
    * running behind it. `ready()` caches the answer for a minute, so the header rides
    * along on a call that happens anyway rather than adding a heartbeat of its own.
+   *
+   * The message names the URL it called. It used to say only "unknown error", which is
+   * what a caller sees when the response is not one of ours — an edge 404, a captive
+   * portal, an unset `CORE_API_URL` falling back to localhost — and those have nothing
+   * in common except being invisible. The one value an operator needs is the address
+   * that failed; the deprecated admin-key path below has always included it.
    */
   private async fetchConfig(): Promise<McpInstanceConfig> {
-    const res = await fetch(`${this.base}/_mcp/config`, {
+    const url = `${this.base}/_mcp/config`
+    const res = await this.call(url, {
       headers: {
         authorization: `Bearer ${this.env.MCP_INSTANCE_ID}`,
         [MCP_WORKER_VERSION_HEADER]: SERVER_VERSION,
@@ -166,7 +192,7 @@ export class CoreClient {
     const body = await readBody<{ data?: { instance?: McpInstanceConfig }; error?: { message?: string } }>(res)
     if (!res.ok || !body?.data?.instance) {
       throw new CoreError(
-        `Failed to read MCP config (${res.status}): ${body?.error?.message ?? 'unknown error'}`,
+        `Failed to read MCP config from ${url} (${res.status}): ${body?.error?.message ?? 'no error body from this address — check CORE_API_URL'}`,
         res.status,
       )
     }
@@ -191,7 +217,7 @@ export class CoreClient {
     const hit = cache.get(key)
     if (hit && Date.now() < hit.expiresAt) return hit.token
 
-    const res = await fetch(`${this.base}/_mcp/session`, {
+    const res = await this.call(`${this.base}/_mcp/session`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -237,7 +263,7 @@ export class CoreClient {
     const cache = (globalStore.__mcpTokenCache ??= new Map())
     const hit = cache.get(cacheKey)
     if (hit && Date.now() - hit.at < 60 * 60 * 1000) return hit.token
-    const res = await fetch(`${this.base}/_auth/token`, {
+    const res = await this.call(`${this.base}/_auth/token`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ key: CORE_ADMIN_KEY }),
@@ -273,7 +299,7 @@ export class CoreClient {
       headers.set('content-type', 'application/json')
     }
     const url = this.base + path
-    const res = await fetch(url, { ...init, headers })
+    const res = await this.call(url, { ...init, headers })
     const raw = await res.text()
     if (!res.ok) {
       // The full URL goes in the message. A 404 from `/_meta/collections` and a

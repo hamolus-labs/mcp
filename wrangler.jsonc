@@ -39,4 +39,28 @@
   // Migrating: set MCP_INSTANCE_ID, deploy, and drop the CORE_ADMIN_KEY /
   // MCP_BEARER_TOKEN secrets. Until MCP_INSTANCE_ID is set, the deprecated env path
   // still works — `GET /` on this worker will say `mode: "legacy"` and warn you.
+
+  // REACHING THE CORE FROM AN ONLINE DEPLOYMENT
+  // -------------------------------------------
+  // `CORE_API_URL` is all you need on most accounts: the worker resolves
+  // `https://<your-core>.workers.dev` and the core answers.
+  //
+  // On some accounts that address is NOT reachable from inside the Workers runtime —
+  // the request comes back as a `404` with no body at all, from the edge, for any
+  // path including this worker's own hostname. Nothing about the URL is wrong, so it
+  // does not help to keep editing it, and the symptom looks like a broken core rather
+  // than an unreachable one. A service binding is the fix: it dispatches straight to
+  // the worker in the same account, with no DNS, TLS or edge in the path.
+  //
+  // It is commented out because it is not universally needed and it is not compatible
+  // with `pnpm dev` — the binding would take precedence over the URL and try to call
+  // the local core over a service instead of `http://localhost:8787`. Enable it for
+  // online deploys only:
+  //
+  //   "services": [{ "binding": "CORE", "service": "your-core-worker-name" }]
+  //
+  // The core routes on path and never reads `Host`, so the bound call reuses the URL
+  // that was already built and only the destination changes. With the binding present
+  // `src/core.ts` uses it for every request and `CORE_API_URL` is only used to build
+  // paths.
 }
