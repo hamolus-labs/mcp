@@ -1,6 +1,6 @@
 {
   "name": "@hamolus/mcp",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "type": "module",
   "license": "MIT",
   "author": "Gilang Albathin Nurhabibi <https://github.com/athron98>",
@@ -50,7 +50,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@hamolus/types": "^0.2.14",
+    "@hamolus/types": "^0.2.15",
     "@modelcontextprotocol/server": "^2.1.0",
     "agents": "^0.24.0",
     "zod": "^4.6.5"
