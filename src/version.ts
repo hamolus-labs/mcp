@@ -23,4 +23,4 @@
  * `packages/cli/scripts/check-package-versions.mjs` fails when it drifts from the
  * lockstep version.
  */
-export const SERVER_VERSION = '0.2.12'
+export const SERVER_VERSION = '0.2.13'
