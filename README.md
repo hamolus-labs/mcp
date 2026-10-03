@@ -11,14 +11,30 @@ That button forks this repository into your own GitHub account, names the Worker
 provisions the KV namespace, D1 database and R2 bucket on your account, and wires
 up Workers Builds so later pushes deploy themselves.
 
-**Point it at your core first.** `CORE_API_URL` ships as
-`http://localhost:8787/api`, so a fresh deploy answers every tool call with a
-connection error until you set it:
+**Register it before anything works.** A fresh deploy has an empty `MCP_INSTANCE_ID`,
+so it runs on the deprecated path with no credential and answers every tool call with
+a configuration error. Create the instance in the core console under
+**Environment → MCP**, then set its id as a var:
 
 ```bash
-wrangler secret put CORE_ADMIN_KEY
-# and set the CORE_API_URL var to https://<your-core>.workers.dev/api
+# Settings → Variables and Secrets, or:
+# wrangler deploy --var MCP_INSTANCE_ID:<id> --var CORE_API_URL:https://<core>/api
 ```
+
+Callers then present a per-user token from the console as `Authorization: Bearer …`.
+`CORE_API_URL` ships as `http://localhost:8787/api`, so an online deploy has to be
+pointed at your core.
+
+**If every call fails with `CORE_UNAVAILABLE` and a `404`,** your account cannot reach
+`workers.dev` from inside the Workers runtime — the URL is correct and editing it will
+not help. Add a service binding to the core instead:
+
+```jsonc
+"services": [{ "binding": "CORE", "service": "<your-core-worker-name>" }]
+```
+
+It is in `wrangler.jsonc` commented out: leave it out for `wrangler dev`, where the
+local core is a separate process on `http://localhost:8787`.
 <!-- deploy:end -->
 
 Model Context Protocol server for Hamolus. It exposes the core API — collections,
